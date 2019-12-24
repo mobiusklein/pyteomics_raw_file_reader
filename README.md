@@ -1,2 +1,2 @@
-# ms_deisotope_raw_file_reader
-An alternative implementation of ms_deisotope's Thermo RAW reader using RawFileReader instead of MSFileReader
+# pyteomics_raw_file_reader
+An adapter for ThermoFisher's RawFileReader library that is compatible with the Pyteomics library
