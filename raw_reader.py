@@ -20,7 +20,6 @@ def _try_number(string):
 _DEFAULT_DLL_PATH = os.path.join(
     os.path.dirname(
         os.path.realpath(__file__)),
-    "_vendor",
     "ThermoRawFileReader_3_0_41",
     "Libraries")
 
@@ -64,12 +63,11 @@ def is_thermo_raw_file(path):
 
 
 def determine_if_available():
-    '''Checks whether or not the COM-based Thermo
+    '''Checks whether or not the .NET Thermo
     RAW file reading feature is available.
 
-    This is done by attempting to instantiate the
-    COM-provided object, which queries the Windows
-    registry for the MSFileReader.dll.
+    This is done by attempting to load the .NET CLR and
+    Thermo libraries
 
     Returns
     -------
@@ -162,6 +160,8 @@ def _copy_double_array(src):
     ``int_ptr_tp`` must be an integer type that can hold a pointer. On Python 2
     this is :class:`long`, and on Python 3 it is :class:`int`.
     '''
+    if src is None:
+        return np.array([], dtype=np.float64)
     dest = np.empty(len(src), dtype=np.float64)
     Marshal.Copy(
         src, 0,
@@ -244,8 +244,11 @@ class RawReaderInterface(object):
         return "%s %r" % (self._scan_id(scan), self._filter_string(scan))
 
     def _filter_string(self, scan):
+        if scan.filter_string is not None:
+            return scan.filter_string
         scan_number = scan.scan_number
-        return FilterString(self._source.GetFilterForScanNumber(scan_number + 1).Filter)
+        scan.filter_string = FilterString(self._source.GetFilterForScanNumber(scan_number + 1).Filter)
+        return scan.filter_string
 
     def _scan_index(self, scan):
         scan_number = scan.scan_number
@@ -270,9 +273,12 @@ class RawReaderInterface(object):
         return IsolationWindow(width, precursor_mz + offset, width)
 
     def _trailer_values(self, scan):
+        if scan.trailer_values is not None:
+            return scan.trailer_values
         scan_number = scan.scan_number
         trailers = self._source.GetTrailerExtraInformation(scan_number + 1)
-        return OrderedDict(zip([label.strip(":") for label in trailers.Labels], map(_try_number, trailers.Values)))
+        scan.trailer_values = OrderedDict(zip([label.strip(":") for label in trailers.Labels], map(_try_number, trailers.Values)))
+        return scan.trailer_values
 
     def _infer_precursor_scan_number(self, scan):
         precursor_scan_number = None
@@ -325,6 +331,8 @@ class RawReaderInterface(object):
         if precursor_scan_number is not None:
             precursor_scan_id = self.get_by_index(
                 precursor_scan_number).id
+        else:
+            precursor_scan_id = None
         return PrecursorInformation(
             precursor_mz, inten, charge, precursor_scan_id,
             source=self, product_scan_id=self._scan_id(scan))
@@ -485,6 +493,7 @@ class ThermoRawScanPtr(object):
     def __init__(self, scan_number):
         self.scan_number = scan_number
         self.filter_string = None
+        self.trailer_values = None
 
     def validate(self, source):
         try:
